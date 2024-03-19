@@ -1,0 +1,40 @@
+---
+- hosts: controlnode
+  become: true
+  pre_tasks:
+  - name: Install updates
+    apt:
+      update_cache: yes
+      cache_valid_time: 86400
+
+- name: Collect pcap file and transfer to manage node
+  hosts: controlnode
+  gather_facts: no
+  tasks:
+    - name: Capture packet data
+      become: yes
+      command: tcpdump -i enps03 -s 64 -w /home/jhoana/packet_data.pcap
+      args:
+        creates: /home/jhoana/packet_data.pcap
+
+- hosts: managenode
+  gather_facts: no
+  tasks:
+    - name: Copy pcap file from ControlNode
+      fetch:
+        src: /home/jhoana/packet_data.pcap
+        dest: /home/jhoana/CPE-243_HOA8.1
+      delegate_to: 192.168.56.106
+
+    - name: Extract executable file using tshark
+      command: "/usr/bin/tshark -r /home/jhoana/CPE-243_HOA8.1/packet_data.pcap -Y 'tcp.stream eq 0' -w /home/jhoana/CPE-243_HOA8.1/executable.exe"
+      args:
+        creates: /home/jhoana/CPE-243_HOA8.1/executable.exe
+
+    - name: Debug.exe file
+      command: cat /home/jhoana/CPE-243_HOA8.1/report.xml
+      register: cat_output
+      changed_when: false
+
+    - debug:
+        var: cat_output.stdout_lines
